@@ -32,6 +32,7 @@ function M.new(buf)
   })
   vim.api.nvim_buf_attach(buf, false, {
     on_lines = update,
+    on_reload = update,
   })
   vim.schedule(update)
   return self
