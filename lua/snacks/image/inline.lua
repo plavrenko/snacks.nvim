@@ -37,16 +37,29 @@ function M.new(buf)
   return self
 end
 
-function M:conceal()
-  local mode = vim.fn.mode():sub(1, 1):lower() ---@type string
-  for _, img in pairs(self.imgs) do
-    img:show()
+--- Lines (1-indexed, inclusive) where concealed images are hidden: the cursor's line or the visual
+--- selection, unless the current mode is in 'concealcursor' or the buffer is not the current one.
+---@return number? from, number? to
+function M:hidden_lines()
+  if self.buf ~= vim.api.nvim_get_current_buf() then
+    return
   end
+  local mode = vim.fn.mode():sub(1, 1):lower() ---@type string
   if vim.wo.concealcursor:find(mode) then
     return
   end
   local from, to = vim.fn.line("v"), vim.fn.line(".")
-  from, to = math.min(from, to), math.max(from, to)
+  return math.min(from, to), math.max(from, to)
+end
+
+function M:conceal()
+  for _, img in pairs(self.imgs) do
+    img:show()
+  end
+  local from, to = self:hidden_lines()
+  if not from then
+    return
+  end
   local hide = self:get(from, to)
   for _, img in pairs(hide) do
     if img.opts.conceal then
@@ -94,6 +107,7 @@ function M:update()
   end or conceal
   Snacks.image.doc.find_visible(self.buf, function(imgs)
     local visible = self:visible()
+    local from, to = self:hidden_lines()
     local stats = { new = 0, del = 0, update = 0 }
     for _, i in ipairs(imgs) do
       local img ---@type snacks.image.Placement?
@@ -123,6 +137,11 @@ function M:update()
             end,
           })
         )
+        -- an image created while the cursor is in its block (e.g. its source was edited in insert
+        -- mode) starts hidden, as `conceal()` would hide it; `hide()` does nothing until it is ready
+        if from and img.opts.conceal and i.range and i.range[1] <= to and i.range[3] >= from then
+          img.hidden = true
+        end
         for _, eid in ipairs(img.eids) do
           self.idx[eid] = img
         end
