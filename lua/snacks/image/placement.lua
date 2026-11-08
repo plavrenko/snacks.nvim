@@ -90,6 +90,16 @@ function M.new(buf, src, opts)
     end)
   elseif self.img:failed() then
     self:error()
+    if self.opts.inline then
+      -- an inline image that failed before (e.g. the same broken source typed again) still needs its
+      -- extmark: inline updates find placements by extmark, and close the ones no longer in the buffer
+      self:_render({
+        {
+          row = self.opts.pos[1] - 1,
+          col = self.opts.pos[2],
+        },
+      })
+    end
   elseif self.opts.inline then
     -- temporary extmark so that we can keep track of unloaded images in the buffer
     self:_render({
